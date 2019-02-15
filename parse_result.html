@@ -1,0 +1,23 @@
+<head> 
+	<title>Log parse result</title> 
+	<script src="https://cdn.plot.ly/plotly-latest.min.js"></script> 
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+</head>
+<body>
+	<h2>neutron-openvswitch-agent.log-20180129-1517214601</h2>
+	<h3>Time interval: From start of log file til 2018-01-27 07:40:00</h3>
+	<ul><li> Traces - 0</li>
+		<li> Debugs - 0</li>
+		<li> Infos - 0</li>
+		<li> Warnings - 0</li>
+		<li> Errors - 1</li>
+	<div id="myDiv"></div>
+	<script>
+		var data = [{
+			values: [0, 0, 0, 0, 1],
+			labels: ['Traces', 'Debugs', 'Infos', 'Warnings', 'Errors'],
+			type: 'pie'
+		}];
+		Plotly.newPlot('myDiv', data);
+	</script>
+</body>

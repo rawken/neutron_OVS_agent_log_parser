@@ -1,100 +1,89 @@
 import argparse
 import datetime
 import re
+import collections 
+traceback_msgs = ('TRACE', 'DEBUG', 'INFO', 'WARNING', 'ERROR')
+traceback_dict = collections.OrderedDict.fromkeys(traceback_msgs, 0)
 
-TRACE_COUNT = 0
-DEBUG_COUNT = 0
-INFO_COUNT = 0
-WARNING_COUNT = 0
-ERR_COUNT = 0
-COUNT_ARR = [TRACE_COUNT, DEBUG_COUNT, INFO_COUNT, WARNING_COUNT, ERR_COUNT]
 
-def valid_datetime(input_time):
+def validate_datetime(input_time):
 	try:
 		return datetime.datetime.strptime(input_time, '%Y-%m-%d %H:%M:%S') 
 	except ValueError:
 		message = 'Given datetime is not valid (expected format - \'YYYY-MM-DD HH:mm:ss\')'
 		raise argparse.ArgumentTypeError(message)
 
-def argument_parser():
+
+def parse_input_arguments():
 	parser = argparse.ArgumentParser(description='Neutron OVS agent log parser')
 	parser.add_argument('-t', '--time',
 		nargs=2,
-		help='display tracebacks in specific time interval, '
+		help='displays tracebacks in specific time interval, '
 		 	'input format: \'YYYY-MM-DD HH:mm:ss\' \'YYYY-MM-DD HH:mm:ss\'',
-		type=valid_datetime)
+		type=validate_datetime)
+	parser.add_argument('-st', '--start', 
+		type=validate_datetime,
+		help='displays tracebacks from the start of log file till entered date and time'
+			'input format: \'YYYY-MM-DD HH:mm:ss\'')
+	parser.add_argument('-et', '--end', 
+		type=validate_datetime,
+		help='displays tracebacks from entered date and time till the end of log file'
+			'input format: \'YYYY-MM-DD HH:mm:ss\'')
 	parser.add_argument('-f', '--file',
 		required=True,
 		help='log file',
 		type=str)
 	return parser.parse_args()
 
-input_args = argument_parser()
 
-if vars(input_args)['time'] == None:
-	is_time_arg = False
-else:
-	start_time = vars(input_args)['time'][0]
-	end_time = vars(input_args)['time'][1]
-	if start_time > end_time:
-		message = 'End time must be greater then start time'
-		raise ValueError(message)
-	is_time_arg = True
-
-def data_extract():
+def exctract_data():
 	result_data = []
 	regexpr = re.compile(
-		r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(\s\d*\s)(ERROR|WARNING|INFO)')
+		r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})(\s\d*\s)(TRACE|DEBUG|ERROR|WARNING|INFO)')
 	#regexp returns YYYY-DD-MM HH-mm-ss.fff NUMBER LOG_LEVEL
 
 	with open(vars(input_args)['file'], 'r') as log_file:
 		for line in log_file:
 			result_data.append((re.match(regexpr, line)).groups())
-
 	return (set(result_data))
 
-def tracebacks_counter(COUNT_ARR):
-	result_data = data_extract()
-	if not is_time_arg:
-		for elem in result_data:
-			if elem[2] == 'TRACE':
-				COUNT_ARR[0] += 1
-			elif elem[2] == 'DEBUG':
-				COUNT_ARR[1] += 1
-			elif elem[2] == 'INFO':
-				COUNT_ARR[2] += 1
-			elif elem[2] == 'WARNING':
-				COUNT_ARR[3] += 1
-			elif elem[2] == 'ERROR':
-				COUNT_ARR[4] += 1
 
-	else:
-		for elem in result_data:
-			tmp_date = datetime.datetime.strptime(elem[0], '%Y-%m-%d %H:%M:%S.%f')
+def count_tracebacks_no_args(result_data):
+	for elem in result_data:
+		traceback_dict[elem[2]] += 1
+
+
+def count_tracebacks(result_data, start_time, end_time):
+	for elem in result_data:
+		tmp_date = datetime.datetime.strptime(elem[0], '%Y-%m-%d %H:%M:%S.%f')
+		if start_time != None and end_time != None:
 			if tmp_date > start_time and tmp_date < end_time:
-				if elem[2] == 'TRACE':
-					COUNT_ARR[0] += 1
-				elif elem[2] == 'DEBUG':
-					COUNT_ARR[1] += 1
-				elif elem[2] == 'INFO':
-					COUNT_ARR[2] += 1
-				elif elem[2] == 'WARNING':
-					COUNT_ARR[3] += 1
-				elif elem[2] == 'ERROR':
-					COUNT_ARR[4] += 1
-	return COUNT_ARR
+				traceback_dict[elem[2]] += 1
+		elif start_time == None and tmp_date < end_time:
+			traceback_dict[elem[2]] += 1
+		elif end_time == None and tmp_date > start_time:
+			traceback_dict[elem[2]] +=1
 
-def print_res(COUNT_ARR):
-	print('Traces - {}\nDebugs - {}\nInfos - {}\n'
-		'Warnings - {} \nErrors - {}'.format(*tracebacks_counter(COUNT_ARR)))
 
-def html_res(COUNT_ARR):
+def print_result(values_list):
+	print('Traces - {traces}\nDebugs - {debugs}\nInfos - {infos}\n'
+		'Warnings - {warnings}\nErrors - {errors}'.format(traces=values_list[0], 
+										debugs=values_list[1], infos=values_list[2], 
+										warnings=values_list[3], errors=values_list[4]))
+
+
+def generate_html_result(is_time_arg, start_time, end_time, file_name, values_list):
 	with open('parse_result.html', 'w') as parse_result:
 		if not is_time_arg:
 			log_time = 'full time'
 		else:
-			log_time = 'From ' + start_time.strftime('%Y-%m-%d %H:%M:%S') + ' to ' + \
-				  end_time.strftime('%Y-%m-%d %H:%M:%S')
+			if start_time != None and end_time != None:
+				log_time = 'From ' + start_time.strftime('%Y-%m-%d %H:%M:%S') + ' to ' + \
+				  	end_time.strftime('%Y-%m-%d %H:%M:%S')
+			elif start_time != None and end_time == None:
+				log_time = 'From ' + start_time.strftime('%Y-%m-%d %H:%M:%S') + ' til the end of log'
+			elif start_time == None and end_time != None:
+				log_time = 'From start of log file til ' + end_time.strftime('%Y-%m-%d %H:%M:%S')
 		parse_result.write(
 		'<head> \n'
     	'	<title>Log parse result</title> \n'
@@ -102,25 +91,51 @@ def html_res(COUNT_ARR):
   		'	<script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>\n'
 		'</head>\n'
 		'<body>\n'
-  		'	<h2>{0}</h2>\n'
-  		'	<h3>Time interval: {6}</h3>'
-  		'	<ul><li> Traces - {1}</li>\n'
-  		'		<li> Debugs - {2}</li>\n'
-  		'		<li> Infos - {3}</li>\n'
-  		'		<li> Warnings - {4}</li>\n'
-  		'		<li> Errors - {5}</li>\n'		
+  		'	<h2>{file_name}</h2>\n'
+  		'	<h3>Time interval: {log_time}</h3>\n'
+  		'	<ul><li> Traces - {trace_count}</li>\n'
+  		'		<li> Debugs - {debug_count}</li>\n'
+  		'		<li> Infos - {info_count}</li>\n'
+  		'		<li> Warnings - {warning_count}</li>\n'
+  		'		<li> Errors - {err_count}</li>\n'		
   		'	<div id="myDiv"></div>\n'
   		'	<script>\n'
     	'		var data = [{{\n'
-        '			values: [{1}, {2}, {3}, {4}, {5}],\n'
+        '			values: [{trace_count}, {debug_count}, {info_count}, {warning_count}, {err_count}],\n'
         '			labels: [\'Traces\', \'Debugs\', \'Infos\', \'Warnings\', \'Errors\'],\n'
         '			type: \'pie\'\n'
     	'		}}];\n'
     	'		Plotly.newPlot(\'myDiv\', data);\n'
   		'	</script>\n'
-		'</body>'.format(vars(input_args)['file'],
-						*COUNT_ARR, log_time)
+		'</body>'.format(file_name=file_name, trace_count=values_list[0], 
+								debug_count=values_list[1], info_count=values_list[2], 
+								warning_count=values_list[3], err_count=values_list[4],
+								log_time=log_time)
 		)
 
-print_res(COUNT_ARR)
-html_res(COUNT_ARR)
+
+if __name__ == '__main__':
+	input_args = parse_input_arguments()
+	file_name = vars(input_args)['file']
+
+	result_data = exctract_data()
+	time = vars(input_args)['time'] 
+	start_time = vars(input_args)['start']
+	end_time = vars(input_args)['end']
+
+	if time == None and start_time == None and end_time == None:
+		is_time_arg = False
+		count_tracebacks_no_args(result_data)
+	else:
+		if time != None:
+			start_time = vars(input_args)['time'][0]
+			end_time = vars(input_args)['time'][1]
+			if start_time > end_time:
+				message = 'End time must be greater then start time'
+				raise ValueError(message)
+		is_time_arg = True
+		count_tracebacks(result_data, start_time, end_time)
+	
+	values_list = list(traceback_dict.values())
+	print_result(values_list)
+	generate_html_result(is_time_arg, start_time, end_time, file_name, values_list)
