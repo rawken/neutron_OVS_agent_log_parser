@@ -22,7 +22,7 @@ def parse_input_arguments():
     parser.add_argument(
         '-st',
         '--start',
-        dest='time',
+        dest='start',
         type=validate_datetime,
         help='displays tracebacks from the start of log file'
              'till entered date and time'
@@ -31,7 +31,7 @@ def parse_input_arguments():
         '-et',
         '--end',
         type=validate_datetime,
-        dest='time',
+        dest='end',
         help='displays tracebacks from entered date and time'
              'till the end of log file'
              'input format: \'YYYY-MM-DD HH:mm:ss\'')
@@ -46,14 +46,14 @@ def parse_input_arguments():
 
 def find_start_and_end():
     if '-st' and '-et' in sys.argv:
-        start_time = input_args.time[0]
-        end_time = input_args.time[1]
+        start_time = input_args.start
+        end_time = input_args.end
     elif '-st' and '-et' not in sys.argv:
-        start_time = input_args.time
+        start_time = input_args.start
         end_time = None
     elif '-et' and '-st' not in sys.argv:
         start_time = None
-        end_time = input_args.time
+        end_time = input_args.end
     else:
         start_time = None
         end_time = None
